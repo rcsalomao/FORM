@@ -16,7 +16,7 @@ def genRV2Param(rv, mean, std, x0=(4.2, 2.4), method='lm', tol=1e-5):
     return randomVar
 
 
-def giveTheD(randomVars, xK, zK):
+def calcD(randomVars, xK, zK):
     nRV = len(randomVars)
     numerador = st.norm.pdf(zK)
     denominador = np.zeros(nRV)
@@ -26,19 +26,19 @@ def giveTheD(randomVars, xK, zK):
     return D
 
 
-def gradienteGX(gx, x, z, d, h=1e-3):
-    nX = len(x)
-    nZ = len(z)
-    dGX = np.zeros(nX+nZ)
-    g = gx(x, z, d)
-    for i in range(nX):
-        xTemp = np.copy(x)
-        xTemp[i] += h
-        dGX[i] = (gx(xTemp, z, d) - g)/h
-    for i in range(nZ):
-        zTemp = np.copy(z)
-        zTemp[i] += h
-        dGX[i+nX] = (gx(x, zTemp, d) - g)/h
+def gradienteGX(gx, xi, xd, d, h=1e-3):
+    nXi = len(xi)
+    nXd = len(xd)
+    dGX = np.zeros(nXi+nXd)
+    g = gx(xi, xd, d)
+    for i in range(nXi):
+        xiTemp = np.copy(xi)
+        xiTemp[i] += h
+        dGX[i] = (gx(xiTemp, xd, d) - g)/h
+    for i in range(nXd):
+        xdTemp = np.copy(xd)
+        xdTemp[i] += h
+        dGX[i+nXi] = (gx(xi, xdTemp, d) - g)/h
     return dGX
 
 
@@ -63,18 +63,18 @@ class FORM(object):
         self.yKTrace = []
         self.xKTrace = []
 
-    def HLRF(self, gx, Xi=None, Zi=None, d=None, correlationMatrix=None, epsilon=2.001, delta=1e-4, maxNumIter=1000, numGradH=1e-3):
+    def HLRF(self, gx, Xi=None, Xd=None, d=None, correlationMatrix=None, epsilon=2.001, delta=1e-4, maxNumIter=1000, numGradH=1e-3):
         if Xi is None:
             Xi = []
-        if Zi is None:
-            Zi = []
+        if Xd is None:
+            Xd = []
         if d is None:
             d = []
 
-        nX = len(Xi)
-        nZ = len(Zi)
-        randomVars = Xi+Zi
-        nRV = nX+nZ
+        nXi = len(Xi)
+        nXd = len(Xd)
+        randomVars = Xi+Xd
+        nRV = nXi+nXd
 
         Jzy = np.linalg.cholesky(correlationMatrix)
         Jyz = np.linalg.inv(Jzy)
@@ -86,10 +86,10 @@ class FORM(object):
             zK[i] = st.norm.ppf(randomVars[i].cdf(randomVars[i].mean()))
         yK = np.dot(Jyz, zK)
 
-        GX = gx(xK[0:nX], xK[nX:], d)
-        dGX = gradienteGX(gx, xK[0:nX], xK[nX:], d, numGradH)
+        GX = gx(xK[0:nXi], xK[nXi:], d)
+        dGX = gradienteGX(gx, xK[0:nXi], xK[nXi:], d, numGradH)
 
-        Jxz = giveTheD(randomVars, xK, zK)
+        Jxz = calcD(randomVars, xK, zK)
         # Jzx = np.linalg.inv(D)
         Jxy = np.dot(Jxz, Jzy)
         # Jyx = np.dot(Jyz, Jzx)
@@ -111,9 +111,9 @@ class FORM(object):
             zK = np.dot(Jzy, yK)
             for i in range(nRV):
                 xK[i] = randomVars[i].ppf(st.norm.cdf(zK[i]))
-            GX = gx(xK[0:nX], xK[nX:], d)
-            dGX = gradienteGX(gx, xK[0:nX], xK[nX:], d, numGradH)
-            Jxz = giveTheD(randomVars, xK, zK)
+            GX = gx(xK[0:nXi], xK[nXi:], d)
+            dGX = gradienteGX(gx, xK[0:nXi], xK[nXi:], d, numGradH)
+            Jxz = calcD(randomVars, xK, zK)
             Jxy = np.dot(Jxz, Jzy)
             dGY = np.dot(Jxy, dGX)
             betaK = np.sqrt(np.dot(yK, yK))
