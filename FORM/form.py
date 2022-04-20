@@ -25,7 +25,7 @@ def compute_D_neq(random_vars, z_k, x_k):
     return np.eye(len(x_k))*(numerador/denominador)
 
 
-def compute_dgX(gX, xi, xd, d, h=1e-4):
+def compute_dgX(gX, xi, xd, d, h=1e-5):
     n_xi = len(xi)
     n_xd = len(xd)
     dgX = np.zeros(n_xi+n_xd)
@@ -65,8 +65,8 @@ class FORM(object):
             Xd=None,
             d=None,
             correlation_matrix=None,
-            epsilon=2.001,
-            delta=1e-4,
+            epsilon=2.0001,
+            delta=1e-5,
             max_number_iterations=1000,
             h_numerical_gradient=1e-4):
         if Xi is None:
