@@ -1,4 +1,4 @@
-from .form import FORM
+from .form import FORM, generate_RV_2_param, serial_system, parallel_system
 
 
-__all__ = ["FORM"]
+__all__ = ["FORM", "generate_RV_2_param", "serial_system", "parallel_system"]
