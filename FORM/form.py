@@ -76,7 +76,7 @@ def criterio_convergencia_delta(gY, delta):
 
 class FORM(object):
     def __init__(self):
-        self.limit_state_trace_data = []
+        self.limit_states_trace_data = []
 
     def HLRF(
         self,
@@ -110,7 +110,7 @@ class FORM(object):
         Jzy = np.linalg.cholesky(correlation_matrix)
         Jyz = np.linalg.inv(Jzy)
 
-        self.limit_state_trace_data.clear()
+        self.limit_states_trace_data.clear()
         gX_trace_data = namedtuple(
             "gX_trace_data", "beta_k_trace, alpha_k_trace, x_k_trace, y_k_trace, k"
         )
@@ -182,11 +182,11 @@ class FORM(object):
                     np.dot(p_k, q_k)
                 )
                 k += 1
-            self.limit_state_trace_data.append(
+            self.limit_states_trace_data.append(
                 gX_trace_data(beta_k_trace, alpha_k_trace, x_k_trace, y_k_trace, k)
             )
         betas_gX = np.array(
-            [gx_data.beta_k_trace[-1] for gx_data in self.limit_state_trace_data],
+            [gXs_data.beta_k_trace[-1] for gXs_data in self.limit_states_trace_data],
             dtype=np.float64,
         )
         pfs_gX = st.norm.cdf(-betas_gX)
@@ -194,6 +194,6 @@ class FORM(object):
             [sys_fun(pfs_gX) for sys_fun in system_functions], dtype=np.float64
         )
         betas_sys = -st.norm.ppf(pfs_sys)
-        gX_pf_beta = namedtuple("gx", "pf, beta")
-        system_pf_beta = namedtuple("system", "pf, beta")
-        return (gX_pf_beta(pfs_gX, betas_gX), system_pf_beta(pfs_sys, betas_sys))
+        gXs_results = namedtuple("gXs_results", "pfs, betas")
+        systems_results = namedtuple("systems_results", "pfs, betas")
+        return (gXs_results(pfs_gX, betas_gX), systems_results(pfs_sys, betas_sys))

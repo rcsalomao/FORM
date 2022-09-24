@@ -27,21 +27,21 @@ def g4(Xi, Xd, d):
 # f = FORM()
 # # corr_matrix[0, 1] = 0.6
 # # corr_matrix[1, 0] = 0.6
-# print(f.HLRF(g1, Xd=Xd, correlation_matrix=corr_matrix))
-# print(f.k)
-# print(f.alpha_k_trace[-1])
-# print(f.y_k_trace[-1])
-# print(f.x_k_trace[-1])
+# print(f.HLRF([g1], Xd=Xd, correlation_matrix=corr_matrix))
+# print(f.limit_states_trace_data[0].k)
+# print(f.limit_states_trace_data[0].alpha_k_trace[-1])
+# print(f.limit_states_trace_data[0].y_k_trace[-1])
+# print(f.limit_states_trace_data[0].x_k_trace[-1])
 
 
 # Xd = [st.norm(40, 5), st.norm(50, 2.5), st.norm(1000, 200)]
 # corr_matrix = np.eye(len(Xd))
 # f = FORM()
-# print(f.HLRF(g2, Xd=Xd, correlation_matrix=corr_matrix))
-# print(f.k)
-# print(f.alpha_k_trace[-1])
-# print(f.y_k_trace[-1])
-# print(f.x_k_trace[-1])
+# print(f.HLRF([g2], Xd=Xd, correlation_matrix=corr_matrix))
+# print(f.limit_states_trace_data[0].k)
+# print(f.limit_states_trace_data[0].alpha_k_trace[-1])
+# print(f.limit_states_trace_data[0].y_k_trace[-1])
+# print(f.limit_states_trace_data[0].x_k_trace[-1])
 
 
 def sys1(pfs):
@@ -54,21 +54,20 @@ def sys2(pfs):
 
 Xd = [st.norm(10, 5), st.norm(9.9, 5)]
 f = FORM()
-res = f.HLRF([g3, g3], system_functions=[sys1, sys2], Xd=Xd)
-gxs, systems = res
-print(gxs)
-print(systems)
-print(gxs.beta[0])
-gx1 = f.limit_state_trace_data[0]
-print(gx1.beta_k_trace)
-print(gx1.k)
+gXs_results, systems_results = f.HLRF([g3, g3], system_functions=[sys1, sys2], Xd=Xd)
+print(gXs_results)
+print(systems_results)
+print(gXs_results.pfs[0], gXs_results.betas[0])
+gx1_trace_data = f.limit_states_trace_data[0]
+print(gx1_trace_data.beta_k_trace)
+print(gx1_trace_data.k)
 
 # Xi = [st.norm(10, 7), st.norm(10, 5), st.norm(15, 5)]
 # d = [0.1, 0.1, 0.8]
 # corr_matrix = np.eye(len(Xi))
 # f = FORM()
-# print(f.HLRF(g4, Xi=Xi, d=d, correlation_matrix=corr_matrix))
-# print(f.k)
-# print(f.alpha_k_trace[-1])
-# print(f.y_k_trace[-1])
-# print(f.x_k_trace[-1])
+# print(f.HLRF([g4], Xi=Xi, d=d, correlation_matrix=corr_matrix))
+# print(f.limit_states_trace_data[0].k)
+# print(f.limit_states_trace_data[0].alpha_k_trace[-1])
+# print(f.limit_states_trace_data[0].y_k_trace[-1])
+# print(f.limit_states_trace_data[0].x_k_trace[-1])
