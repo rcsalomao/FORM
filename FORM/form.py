@@ -2,29 +2,27 @@ import numpy as np
 import scipy.stats as st
 from scipy.optimize import root
 import math
-from itertools import combinations
 from functools import reduce
 from collections import namedtuple
 
 
 def serial_system(*pfs_gX):
-    pfs_idx = list(range(len(pfs_gX)))
-    pf_system = 0.0
-    for idx in pfs_idx:
-        n = idx + 1
-        pfs_idx_combinations = combinations(pfs_idx, n)
-        signal = (-1) ** idx
-        for pfs_idx_combination in pfs_idx_combinations:
-            pf_combination = 1.0
-            for pf_idx in pfs_idx_combination:
-                pf_combination *= pfs_gX[pf_idx]
-            pf_system += signal * pf_combination
-    return pf_system
+    betas = -st.norm.ppf(pfs_gX)
+    return 1.0 - st.multivariate_normal.cdf(betas, cov=np.eye(len(pfs_gX)))
 
 
 def parallel_system(*pfs_gX):
-    pf_system = reduce(lambda x, y: x * y, pfs_gX)
-    return pf_system
+    return reduce(lambda x, y: x * y, pfs_gX)
+
+
+def serial_system_with_correlation(betas, alphas):
+    n_vars = len(betas)
+    cov_matrix = np.eye(n_vars)
+    for i in range(n_vars):
+        for j in range(n_vars):
+            if i != j:
+                cov_matrix[i, j] = alphas[i].dot(alphas[j])
+    return 1.0 - st.multivariate_normal.cdf(betas, cov=cov_matrix, allow_singular=True)
 
 
 def error_RV_2_param(x, rv, mean, std):
@@ -86,6 +84,7 @@ class FORM(object):
         Xd=None,
         d=None,
         correlation_matrix=None,
+        calc_serial_system=False,
         epsilon=2.0001,
         delta=1e-5,
         max_number_iterations=1000,
@@ -196,4 +195,27 @@ class FORM(object):
         betas_sys = -st.norm.ppf(pfs_sys)
         gXs_results = namedtuple("gXs_results", "pfs, betas")
         systems_results = namedtuple("systems_results", "pfs, betas")
-        return (gXs_results(pfs_gX, betas_gX), systems_results(pfs_sys, betas_sys))
+        if not calc_serial_system:
+            result = namedtuple("result", "gXs_results, systems_results")
+            return result(
+                gXs_results(pfs_gX, betas_gX), systems_results(pfs_sys, betas_sys)
+            )
+        else:
+            alphas_gX = np.array(
+                [
+                    gXs_data.alpha_k_trace[-1]
+                    for gXs_data in self.limit_states_trace_data
+                ],
+                dtype=np.float64,
+            )
+            serial_system_result = namedtuple("serial_system_result", "pf, beta")
+            serial_system_pf = serial_system_with_correlation(betas_gX, alphas_gX)
+            serial_system_beta = -st.norm.ppf(serial_system_pf)
+            result = namedtuple(
+                "result", "gXs_results, systems_results, serial_system_result"
+            )
+            return result(
+                gXs_results(pfs_gX, betas_gX),
+                systems_results(pfs_sys, betas_sys),
+                serial_system_result(serial_system_pf, serial_system_beta),
+            )

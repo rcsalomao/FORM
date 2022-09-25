@@ -54,10 +54,11 @@ def sys2(pfs):
 
 Xd = [st.norm(10, 5), st.norm(9.9, 5)]
 f = FORM()
-gXs_results, systems_results = f.HLRF([g3, g3], system_functions=[sys1, sys2], Xd=Xd)
-print(gXs_results)
-print(systems_results)
-print(gXs_results.pfs[0], gXs_results.betas[0])
+res = f.HLRF([g3, g3], system_functions=[sys1, sys2], Xd=Xd, calc_serial_system=True)
+print(res.gXs_results)
+print(res.systems_results)
+print(res.serial_system_result)
+print(res.gXs_results.pfs[0], res.gXs_results.betas[0])
 gx1_trace_data = f.limit_states_trace_data[0]
 print(gx1_trace_data.beta_k_trace)
 print(gx1_trace_data.k)
