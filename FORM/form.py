@@ -6,16 +6,31 @@ from functools import reduce
 from collections import namedtuple
 
 
-def serial_system(*pfs_gX):
-    betas = -st.norm.ppf(pfs_gX)
-    return 1.0 - st.multivariate_normal.cdf(betas, cov=np.eye(len(pfs_gX)))
+def serial_system(pfs):
+    betas = -st.norm.ppf(pfs)
+    return 1.0 - st.multivariate_normal.cdf(betas, cov=np.eye(len(pfs)))
 
 
-def parallel_system(*pfs_gX):
-    return reduce(lambda x, y: x * y, pfs_gX)
+def parallel_system(pfs):
+    return reduce(lambda x, y: x * y, pfs)
 
 
-def serial_system_with_correlation(betas, alphas):
+def calc_system_pf(system_definition: dict, pfs_gX):
+    pfs_system = []
+    for k in system_definition:
+        values = system_definition[k]
+        for val in values:
+            if isinstance(val, int):
+                pfs_system.append(pfs_gX[val])
+            if isinstance(val, dict):
+                pfs_system.append(calc_system_pf(val, pfs_gX))
+        if k == "serial":
+            return serial_system(pfs_system)
+        if k == "parallel":
+            return parallel_system(pfs_system)
+
+
+def calc_serial_system_with_correlation_pf(betas, alphas):
     n_vars = len(betas)
     cov_matrix = np.eye(n_vars)
     for i in range(n_vars):
@@ -79,19 +94,19 @@ class FORM(object):
     def HLRF(
         self,
         limit_state_functions,
-        system_functions=None,
+        system_definitions=None,
         Xi=None,
         Xd=None,
         d=None,
         correlation_matrix=None,
         calc_serial_system=False,
         epsilon=2.0001,
-        delta=1e-5,
+        delta=1e-4,
         max_number_iterations=1000,
-        h_numerical_gradient=1e-4,
+        h_numerical_gradient=1e-3,
     ):
-        if system_functions is None:
-            system_functions = []
+        if system_definitions is None:
+            system_definitions = []
         if Xi is None:
             Xi = []
         if Xd is None:
@@ -190,7 +205,11 @@ class FORM(object):
         )
         pfs_gX = st.norm.cdf(-betas_gX)
         pfs_sys = np.array(
-            [sys_fun(pfs_gX) for sys_fun in system_functions], dtype=np.float64
+            [
+                calc_system_pf(system_definition, pfs_gX)
+                for system_definition in system_definitions
+            ],
+            dtype=np.float64,
         )
         betas_sys = -st.norm.ppf(pfs_sys)
         gXs_results = namedtuple("gXs_results", "pfs, betas")
@@ -209,7 +228,9 @@ class FORM(object):
                 dtype=np.float64,
             )
             serial_system_result = namedtuple("serial_system_result", "pf, beta")
-            serial_system_pf = serial_system_with_correlation(betas_gX, alphas_gX)
+            serial_system_pf = calc_serial_system_with_correlation_pf(
+                betas_gX, alphas_gX
+            )
             serial_system_beta = -st.norm.ppf(serial_system_pf)
             result = namedtuple(
                 "result", "gXs_results, systems_results, serial_system_result"
