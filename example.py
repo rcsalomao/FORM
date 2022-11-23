@@ -3,6 +3,11 @@ import numpy as np
 import scipy.stats as st
 
 
+def g2(Xi, Xd, d):
+    Xd1, Xd2 = Xd
+    return Xd1**3 + Xd2 - 9
+
+
 def g3(Xi, Xd, d):
     Xd1, Xd2 = Xd
     return Xd1**3 + Xd2**3 - 18
@@ -18,14 +23,10 @@ def example1():
     system_definitions = [
         {"parallel": [0, 1]},
         {"serial": range(2)},
-        {"serial": [{"parallel": [0, 1]}, 1]},
     ]
-    res = f.HLRF(
-        [g3, g3], system_definitions=system_definitions, Xd=Xd, calc_serial_system=True
-    )
+    res = f.HLRF([g2, g3], system_definitions=system_definitions, Xd=Xd)
     print(res.gXs_results)
     print(res.systems_results)
-    print(res.serial_system_result)
     print(res.gXs_results.pfs[0], res.gXs_results.betas[0])
     gx1_trace_data = f.limit_states_trace_data[0]
     print(gx1_trace_data.beta_k_trace)

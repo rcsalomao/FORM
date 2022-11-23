@@ -2,32 +2,7 @@ import numpy as np
 import scipy.stats as st
 from scipy.optimize import root
 import math
-from functools import reduce
 from collections import namedtuple
-
-
-def serial_system(pfs):
-    betas = -st.norm.ppf(pfs)
-    return 1.0 - st.multivariate_normal.cdf(betas, cov=np.eye(len(pfs)))
-
-
-def parallel_system(pfs):
-    return reduce(lambda x, y: x * y, pfs)
-
-
-def calc_system_pf(system_definition: dict, pfs_gX):
-    pfs_system = []
-    for k in system_definition:
-        values = system_definition[k]
-        for val in values:
-            if isinstance(val, int):
-                pfs_system.append(pfs_gX[val])
-            if isinstance(val, dict):
-                pfs_system.append(calc_system_pf(val, pfs_gX))
-        if k == "serial":
-            return serial_system(pfs_system)
-        if k == "parallel":
-            return parallel_system(pfs_system)
 
 
 def calc_serial_system_with_correlation_pf(betas, alphas):
@@ -38,6 +13,39 @@ def calc_serial_system_with_correlation_pf(betas, alphas):
             if i != j:
                 cov_matrix[i, j] = alphas[i].dot(alphas[j])
     return 1.0 - st.multivariate_normal.cdf(betas, cov=cov_matrix, allow_singular=True)
+
+
+def calc_parallel_system_with_correlation_pf(betas, alphas):
+    n_vars = len(betas)
+    cov_matrix = np.eye(n_vars)
+    for i in range(n_vars):
+        for j in range(n_vars):
+            if i != j:
+                cov_matrix[i, j] = alphas[i].dot(alphas[j])
+    return st.multivariate_normal.cdf(-betas, cov=cov_matrix, allow_singular=True)
+
+
+def calc_system_pf(system_definition: dict, betas_gX, alphas_gX):
+    betas = []
+    alphas = []
+    for k in system_definition:
+        assert k in [
+            "serial",
+            "parallel",
+        ], "Please inform either 'serial' or 'parallel' only for system definition."
+        idx_gX = system_definition[k]
+        assert all(
+            isinstance(idx, int) for idx in idx_gX
+        ), "Only integer values for system definitions are supported.\nFor example, {'serial': [0, 1, 2, ...]} or {'parallel': [8, 9, 10, ...]}."
+        for idx in idx_gX:
+            betas.append(betas_gX[idx])
+            alphas.append(alphas_gX[idx])
+        betas = np.array(betas)
+        alphas = np.array(alphas)
+        if k == "serial":
+            return calc_serial_system_with_correlation_pf(betas, alphas)
+        else:  # k == 'parallel'
+            return calc_parallel_system_with_correlation_pf(betas, alphas)
 
 
 def error_RV_2_param(x, rv, mean, std):
@@ -99,7 +107,6 @@ class FORM(object):
         Xd=None,
         d=None,
         correlation_matrix=None,
-        calc_serial_system=False,
         epsilon=2.0001,
         delta=1e-4,
         max_number_iterations=1000,
@@ -203,10 +210,14 @@ class FORM(object):
             [gXs_data.beta_k_trace[-1] for gXs_data in self.limit_states_trace_data],
             dtype=np.float64,
         )
+        alphas_gX = np.array(
+            [gXs_data.alpha_k_trace[-1] for gXs_data in self.limit_states_trace_data],
+            dtype=np.float64,
+        )
         pfs_gX = st.norm.cdf(-betas_gX)
         pfs_sys = np.array(
             [
-                calc_system_pf(system_definition, pfs_gX)
+                calc_system_pf(system_definition, betas_gX, alphas_gX)
                 for system_definition in system_definitions
             ],
             dtype=np.float64,
@@ -214,29 +225,7 @@ class FORM(object):
         betas_sys = -st.norm.ppf(pfs_sys)
         gXs_results = namedtuple("gXs_results", "pfs, betas")
         systems_results = namedtuple("systems_results", "pfs, betas")
-        if not calc_serial_system:
-            result = namedtuple("result", "gXs_results, systems_results")
-            return result(
-                gXs_results(pfs_gX, betas_gX), systems_results(pfs_sys, betas_sys)
-            )
-        else:
-            alphas_gX = np.array(
-                [
-                    gXs_data.alpha_k_trace[-1]
-                    for gXs_data in self.limit_states_trace_data
-                ],
-                dtype=np.float64,
-            )
-            serial_system_result = namedtuple("serial_system_result", "pf, beta")
-            serial_system_pf = calc_serial_system_with_correlation_pf(
-                betas_gX, alphas_gX
-            )
-            serial_system_beta = -st.norm.ppf(serial_system_pf)
-            result = namedtuple(
-                "result", "gXs_results, systems_results, serial_system_result"
-            )
-            return result(
-                gXs_results(pfs_gX, betas_gX),
-                systems_results(pfs_sys, betas_sys),
-                serial_system_result(serial_system_pf, serial_system_beta),
-            )
+        result = namedtuple("result", "gXs_results, systems_results")
+        return result(
+            gXs_results(pfs_gX, betas_gX), systems_results(pfs_sys, betas_sys)
+        )
