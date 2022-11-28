@@ -1,4 +1,4 @@
-# **F**irst **O**rder **R**eliability **M**ethod
+# First Order Reliability Method - FORM
 First Order Reliability Method implementation using HLRF-BFGS to solve the reliability problem as described in [1].
 
 # References
