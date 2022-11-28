@@ -1,4 +1,6 @@
-# FORM
-First Order Reliability Method implementation using HLRF-BFGS to solve the reliability problem.
+# **F**irst **O**rder **R**eliability **M**ethod
+First Order Reliability Method implementation using HLRF-BFGS to solve the reliability problem as described in [1].
 
->!! Important !!: The limite state functions g(X_i, X_d, d) are assumed to be independent when computing the system's failure probabilities.
+# References
+
+[1]: Periçaro, G. A. et al. HLRF-BFGS optimization algorithm for structural reliability. Applied Mathematical Modelling 2015;39:2025-2035.
