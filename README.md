@@ -67,7 +67,6 @@ $d_n$ is also described as a vector of *design* deterministic variables.
 
 The *design* variables, both random and deterministic, are employed in the context of numerical optimization.
 The use of this library for solving optimization problems with reliability constraints won't be discussed in this repo.
-For that case, I shall create another repo specifically to show it's use.
 
 With that said, the description of a limit state function $g$ is given as:
 ```python
