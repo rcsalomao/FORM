@@ -1,8 +1,10 @@
+import math
+from collections import namedtuple
+from functools import partial
+
 import numpy as np
 import scipy.stats as st
 from scipy.optimize import root
-import math
-from collections import namedtuple
 
 
 def calc_serial_system_with_correlation_pf(betas, alphas):
@@ -48,14 +50,33 @@ def calc_system_pf(system_definition: dict, betas_gX, alphas_gX):
             return calc_parallel_system_with_correlation_pf(betas, alphas)
 
 
-def error_RV_2_param(x, rv, mean, std):
-    random_var = rv(x[0], scale=x[1])
+def error_RV(x, rv, mean, std, fixed_params, search_params):
+    sp = {s: v for (s, v) in zip(search_params, x)}
+    random_var = partial(rv, **fixed_params)(**sp)
     return [mean - random_var.mean(), std - random_var.std()]
 
 
-def generate_RV_2_param(rv, mean, std, x0=(4.2, 2.4), method="lm", tol=1e-5):
-    sol = root(error_RV_2_param, x0=x0, args=(rv, mean, std), method=method)
-    random_var = rv(sol.x[0], scale=sol.x[1])
+def generate_RV(
+    rv,
+    mean,
+    std,
+    fixed_params: dict[str:float],
+    search_params: list[str],
+    x0=None,
+    method="lm",
+    tol=1e-4,
+):
+    if x0 is None:
+        x0 = [4.2, 2.4][: len(search_params)]
+    assert len(x0) == len(search_params)
+    sol = root(
+        error_RV,
+        x0=x0,
+        args=(rv, mean, std, fixed_params, search_params),
+        method=method,
+    )
+    sp = {s: v for (s, v) in zip(search_params, sol.x)}
+    random_var = partial(rv, **fixed_params)(**sp)
     assert (abs(random_var.mean() - mean) < tol) and (abs(random_var.std() - std) < tol)
     return random_var
 
