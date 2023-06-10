@@ -125,17 +125,20 @@ limit_state_functions = [g1, g2, g3]
 
 A system definition is expressed as a dictionary with key either "serial" or "parallel" and a value representing a list made of integers and/or subsystem definition dictionaries.
 The integer values map out to the index position of a limit state function contained in the limit state functions input list.
-This way, it's possible to represent either "serial" or "parallel" systems only.
-The evaluation of the system's failure probabilities are done according to [4].
-It's only possible to compute "serial" and "parallel" systems in this implementation.
+This way, it's possible to represent "serial", "parallel" and mixed/hybrid systems.
+The system's reliability indexes are computed via Sequential Compounding Method (SCM) as described in [4].
 
 #### Examples
 
 ```python
 system1 = {"serial": [0, 1, 2]}
 system2 = {"parallel": range(len(limit_state_functions))}
+system3 = {"parallel": [
+    {"serial": [0, 1]},
+    2
+]}
 
-system_definitions = [system1, system2]
+system_definitions = [system1, system2, system3]
 ```
 
 ### FORM Interface
@@ -222,4 +225,4 @@ This same problem is described in the `example.py` file, together with, possibly
 
 [3]: Periçaro GA, Santos SR, Ribeiro AA, Matioli LC. HLRF–BFGS optimization algorithm for structural reliability. Applied mathematical modelling. 2015;39(7):2025–2035.
 
-[4]: Song J, Kiureghian AD. Bounds on System Reliability by Linear Programming. Jounal of Engineering Mechanics. 2003;129(6):627–636.
+[4]: Kang W-H, Song J. Evaluation of multivariate normal integrals for general systems by sequential compounding. Structural Safety. 2010;32(1):35-41.
