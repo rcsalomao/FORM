@@ -1,53 +1,169 @@
 import math
 from collections import namedtuple
+from copy import deepcopy
 from functools import partial
 
 import numpy as np
 import scipy.stats as st
-from scipy.optimize import root
+from scipy.optimize import minimize_scalar, root
 
 
-def calc_serial_system_with_correlation_pf(betas, alphas):
-    n_vars = len(betas)
-    cov_matrix = np.eye(n_vars)
-    for i in range(n_vars):
-        for j in range(n_vars):
-            if i != j:
-                cov_matrix[i, j] = alphas[i].dot(alphas[j])
-    return 1.0 - st.multivariate_normal.cdf(betas, cov=cov_matrix, allow_singular=True)
+def get_rho_ij(rho_ij: dict, i, j):
+    if i < j:
+        return rho_ij[(i, j)]
+    else:
+        return rho_ij[(j, i)]
 
 
-def calc_parallel_system_with_correlation_pf(betas, alphas):
-    n_vars = len(betas)
-    cov_matrix = np.eye(n_vars)
-    for i in range(n_vars):
-        for j in range(n_vars):
-            if i != j:
-                cov_matrix[i, j] = alphas[i].dot(alphas[j])
-    return st.multivariate_normal.cdf(-betas, cov=cov_matrix, allow_singular=True)
+def set_rho_ij(rho_ij: dict, i, j, value):
+    if i < j:
+        rho_ij[(i, j)] = value
+    else:
+        rho_ij[(j, i)] = value
 
 
-def calc_system_pf(system_definition: dict, betas_gX, alphas_gX):
-    betas = []
-    alphas = []
-    for k in system_definition:
-        assert k in [
-            "serial",
-            "parallel",
-        ], "Please inform either 'serial' or 'parallel' only for system definition."
-        idx_gX = system_definition[k]
-        assert all(
-            isinstance(idx, int) for idx in idx_gX
-        ), "Only integer values for system definitions are supported.\nFor example, {'serial': [0, 1, 2, ...]} or {'parallel': [8, 9, 10, ...]}."
-        for idx in idx_gX:
-            betas.append(betas_gX[idx])
-            alphas.append(alphas_gX[idx])
-        betas = np.array(betas)
-        alphas = np.array(alphas)
-        if k == "serial":
-            return calc_serial_system_with_correlation_pf(betas, alphas)
-        else:  # k == 'parallel'
-            return calc_parallel_system_with_correlation_pf(betas, alphas)
+def calc_rho_ij(alphas_gX):
+    n_gX = len(alphas_gX)
+    rho_ij = {}
+    for i in range(n_gX):
+        for j in range(1 + i, n_gX):
+            rho = alphas_gX[i].dot(alphas_gX[j])
+            set_rho_ij(rho_ij, i, j, rho)
+    return rho_ij
+
+
+def calc_A(beta_k):
+    return st.norm.pdf(-beta_k) / st.norm.cdf(-beta_k)
+
+
+def calc_B(A, beta_k):
+    return A * (-beta_k + A)
+
+
+def calc_beta_i_k(beta_i, rho_i_k, A, B):
+    return (beta_i - rho_i_k * A) / np.sqrt(1 - rho_i_k**2 * B)
+
+
+def calc_rho_12_k(B, rho_12, rho_1_k, rho_2_k):
+    return (rho_12 - rho_1_k * rho_2_k * B) / (
+        np.sqrt(1 - rho_1_k**2 * B) * np.sqrt(1 - rho_2_k**2 * B)
+    )
+
+
+def calc_beta_12_k(beta_12, rho_12_k, A, B):
+    return (beta_12 - rho_12_k * A) / np.sqrt(1 - rho_12_k**2 * B)
+
+
+def calc_bivariate_cdf(system_type, beta_1, beta_2, rho_12):
+    if system_type == "parallel":
+        return st.multivariate_normal.cdf(
+            [-beta_1, -beta_2],
+            cov=np.array([[1.0, rho_12], [rho_12, 1.0]]),
+            allow_singular=True,
+        )
+    if system_type == "serial":
+        return 1.0 - st.multivariate_normal.cdf(
+            [beta_1, beta_2],
+            cov=np.array([[1.0, rho_12], [rho_12, 1.0]]),
+            allow_singular=True,
+        )
+    raise ValueError(
+        "Invalid system type: {0}. Only 'parallel' or 'serial' types allowed".format(
+            system_type
+        )
+    )
+
+
+def calc_beta_12(system_type, beta_1, beta_2, rho_12):
+    return -st.norm.ppf(calc_bivariate_cdf(system_type, beta_1, beta_2, rho_12))
+
+
+def compound_values(system_type, system_components, beta_i, rho_ij):
+    m = system_components[0]
+    n = system_components[1]
+    beta_1 = beta_i[m]
+    beta_2 = beta_i[n]
+    rho_12 = get_rho_ij(rho_ij, m, n)
+    beta_12 = calc_beta_12(system_type, beta_1, beta_2, rho_12)
+    beta_number = max(beta_i.keys()) + 1
+    system_components.pop(0)
+    system_components[0] = beta_number
+    beta_i.pop(m)
+    beta_i.pop(n)
+    beta_i[beta_number] = beta_12
+    for k in beta_i.keys():
+        if k == beta_number:
+            continue
+        beta_k = beta_i[k]
+        rho_1_k = get_rho_ij(rho_ij, m, k)
+        rho_2_k = get_rho_ij(rho_ij, n, k)
+        A = calc_A(beta_k)
+        B = calc_B(A, beta_k)
+        beta_1_k = calc_beta_i_k(beta_1, rho_1_k, A, B)
+        beta_2_k = calc_beta_i_k(beta_2, rho_2_k, A, B)
+        rho_12_k = calc_rho_12_k(B, rho_12, rho_1_k, rho_2_k)
+        bivariate_cdf_k = calc_bivariate_cdf(system_type, beta_1_k, beta_2_k, rho_12_k)
+        min_result = minimize_scalar(
+            lambda x: np.abs(
+                bivariate_cdf_k - st.norm.cdf(-calc_beta_12_k(beta_12, x, A, B))
+            ),
+            bounds=(-1, 1),
+            method="bounded",
+        )
+        equivalent_rho_12_k = min_result.x
+        set_rho_ij(rho_ij, beta_number, k, equivalent_rho_12_k)
+
+
+def calc_system_beta(system_definition, betas_gX, alphas_gX):
+    beta_i = {i: v for i, v in enumerate(betas_gX)}
+    rho_ij = calc_rho_ij(alphas_gX)
+    current_system = deepcopy(system_definition)
+    system_pointer = current_system
+    parent_system_pointer_pointer = current_system
+    system_pointer_position = 0
+    while True:
+        for current_system_type, current_system_components in current_system.items():
+            break
+        if len(current_system_components) == 1 and isinstance(
+            current_system_components[0], int
+        ):
+            return beta_i[current_system_components[0]]
+        if (
+            len(current_system_components) == 2
+            and isinstance(current_system_components[0], int)
+            and isinstance(current_system_components[1], int)
+        ):
+            m = current_system_components[0]
+            n = current_system_components[1]
+            beta_1 = beta_i[m]
+            beta_2 = beta_i[n]
+            rho_12 = get_rho_ij(rho_ij, m, n)
+            return calc_beta_12(current_system_type, beta_1, beta_2, rho_12)
+        for system_pointer_type, system_pointer_components in system_pointer.items():
+            break
+        if isinstance(system_pointer_components[0], dict):
+            parent_system_pointer_pointer = system_pointer
+            system_pointer = system_pointer_components[0]
+            system_pointer_position = 0
+            continue
+        if len(system_pointer_components) == 1:
+            for (
+                _,
+                parent_system_pointer_pointer_components,
+            ) in parent_system_pointer_pointer.items():
+                break
+            parent_system_pointer_pointer_components[
+                system_pointer_position
+            ] = system_pointer_components[0]
+            system_pointer = current_system
+            parent_system_pointer_pointer = current_system
+            continue
+        if isinstance(system_pointer_components[1], dict):
+            parent_system_pointer_pointer = system_pointer
+            system_pointer = system_pointer_components[1]
+            system_pointer_position = 1
+            continue
+        compound_values(system_pointer_type, system_pointer_components, beta_i, rho_ij)
 
 
 def error_RV(x, rv, mean, std, fixed_params, search_params):
@@ -236,14 +352,14 @@ class FORM(object):
             dtype=np.float64,
         )
         pfs_gX = st.norm.cdf(-betas_gX)
-        pfs_sys = np.array(
+        betas_sys = np.array(
             [
-                calc_system_pf(system_definition, betas_gX, alphas_gX)
+                calc_system_beta(system_definition, betas_gX, alphas_gX)
                 for system_definition in system_definitions
             ],
             dtype=np.float64,
         )
-        betas_sys = -st.norm.ppf(pfs_sys)
+        pfs_sys = st.norm.cdf(-betas_sys)
         gXs_results = namedtuple("gXs_results", "pfs, betas")
         systems_results = namedtuple("systems_results", "pfs, betas")
         result = namedtuple("result", "gXs_results, systems_results")
