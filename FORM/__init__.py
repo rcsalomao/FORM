@@ -1,3 +1,4 @@
-from .form import FORM, generate_RV
+from .form import FORM
+from .generate_RV import generate_RV
 
 __all__ = ["FORM", "generate_RV"]
