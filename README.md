@@ -22,17 +22,34 @@ Please install them beforehand on your python environment.
 
 The random variables to supply as input must be random variable objects from scipy.stats module.
 In this manner, the user is responsible for the random variables specific parameters and fitting process.
-The function `generate_RV(...)` is also supplied to help finding a random variable with desired mean $\mu$ and standard deviation $\sigma$.
+The module `generate_RV` is also supplied to help finding a random variable with desired mean $\mu$ and/or standard deviation $\sigma$.
+This module contains random variable generator functions, that tries to find a desired random distribution with the desired parameters.
 
-The input description of said function is:
+The implemented generator functions are:
 ```python
-generate_RV(rv, mean, std, fixed_params: dict[str:float], search_params: list[str], x0=None, method="lm", tol=1e-4):
+generate_RV.generic(...)
+generate_RV.normal(...)
+generate_RV.lognormal(...)
+generate_RV.gumbel(...)
+generate_RV.weibull(...)
+generate_RV.frechet(...)
+generate_RV.beta(...)
+generate_RV.gamma(...)
+generate_RV.uniform(...)
+generate_RV.rayleigh(...)
+generate_RV.maxwell(...)
+generate_RV.exponential(...)
+```
+
+The input description for the `generic(...)` function is:
+```python
+generate_RV.generic(rv, mean, std: float | None, fixed_params: dict[str:float], search_params: list[str], x0=None, method="lm", tol=1e-4):
 
 # rv: Random variable object from scipy.stats.
 
 # mean: Mean value of the resulting random variable.
 
-# std: Standard deviation value of the resulting random variable.
+# std: Standard deviation value or a None value, according to the random distribution.
 
 # fixed_params: Dictionary defining the values of the random variable parameters that will be adopted throught the root finding process to fit the scipy.stats random variable object.
 
@@ -45,29 +62,41 @@ generate_RV(rv, mean, std, fixed_params: dict[str:float], search_params: list[st
 # tol: Tolerance value. After the root function invocation, there is a verification to check if the mean and standard deviation of the resulting random variable object has the desired mean and std. That is, abs(rv.mean() - mean) < tol and abs(rv.std() - std) < tol.
 ```
 
+The `lognormal`, `gumbel`, `weibull`, `beta`, `exponential` and other random distribution generator functions have, in general, the following signatures:
+```python
+generate_RV.lognormal( mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.gumbel(mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.weibull(mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.beta(mean, std, lower_bound=0, upper_bound=1, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.exponential( mean, x0: list[float] | None = None, method="lm", tol=1e-4):
+```
+
 #### Examples
 
 ```python
 X1 = scipy.stats.norm()
 X2 = scipy.stats.norm(9.9, 0.8)
-X3 = generate_RV(
-    scipy.stats.gumbel_l,
+X3 = generate_RV.generic(
+    scipy.stats.gumbel_r,
     5.8,
     1.9,
     fixed_params={},
     search_params=["loc", "scale"]
 )
+X4 = generate_RV.weibull(4.2, 1.4)
 
-Xi = [X1, X2, X3]
+Xi = [X1, X2, X3, X4]
 
 Xd = [
-    generate_RV(
+    generate_RV.generic(
         scipy.stats.lognorm,
         5.0,
         1.2,
         fixed_params={"loc": 0},
         search_params=["s", "scale"]
-    )
+    ),
+    generate_RV.gumbel(4.2, 0.2*4.2),
+    generate_RV.uniform(6.3, 1.2)
 ]
 ```
 
