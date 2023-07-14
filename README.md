@@ -31,6 +31,8 @@ generate_RV.generic(...)
 generate_RV.normal(...)
 generate_RV.lognormal(...)
 generate_RV.gumbel(...)
+generate_RV.type_I_largest_value(...)
+generate_RV.type_I_smallest_value(...)
 generate_RV.weibull(...)
 generate_RV.frechet(...)
 generate_RV.beta(...)
@@ -66,9 +68,9 @@ The `lognormal`, `gumbel`, `weibull`, `beta`, `exponential` and other random dis
 ```python
 generate_RV.lognormal( mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
 generate_RV.gumbel(mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
-generate_RV.weibull(mean, std, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.weibull(mean, std, loc: float = 0, x0: list[float] | None = None, method="lm", tol=1e-4):
 generate_RV.beta(mean, std, lower_bound=0, upper_bound=1, x0: list[float] | None = None, method="lm", tol=1e-4):
-generate_RV.exponential( mean, x0: list[float] | None = None, method="lm", tol=1e-4):
+generate_RV.exponential( mean, loc: float = 0, x0: list[float] | None = None, method="lm", tol=1e-4):
 ```
 
 #### Examples
