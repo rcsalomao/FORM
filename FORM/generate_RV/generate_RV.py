@@ -1,5 +1,6 @@
 from functools import partial
 
+import numpy as np
 import scipy.stats as st
 from scipy.optimize import root
 
@@ -44,47 +45,35 @@ def normal(mean, std):
     return st.norm(mean, std)
 
 
-def lognormal(
-    mean,
-    std,
-    x0: list[float] | None = None,
-    method="lm",
-    tol=1e-4,
-):
-    return generic(
-        st.lognorm,
-        mean,
-        std,
-        fixed_params={"loc": 0},
-        search_params=["s", "scale"],
-        x0=x0,
-        method=method,
-        tol=tol,
-    )
+def lognormal(mean, std):
+    cov = std / mean
+    zeta = np.sqrt(np.log(1 + cov**2))
+    lamb = np.log(mean) - 0.5 * zeta**2
+    return st.lognorm(s=zeta, loc=0, scale=np.exp(lamb))
 
 
-def gumbel(
-    mean,
-    std,
-    x0: list[float] | None = None,
-    method="lm",
-    tol=1e-4,
-):
-    return generic(
-        st.gumbel_r,
-        mean,
-        std,
-        fixed_params={},
-        search_params=["loc", "scale"],
-        x0=x0,
-        method=method,
-        tol=tol,
-    )
+def gumbel(mean, std):
+    gamma = 0.57721566490153286060
+    beta = (std * np.sqrt(6)) / np.pi
+    mu = mean - gamma * beta
+    return st.gumbel_r(loc=mu, scale=beta)
+
+
+def type_I_largest_value(mean, std):
+    return gumbel(mean, std)
+
+
+def type_I_smallest_value(mean, std):
+    gamma = 0.57721566490153286060
+    beta = (std * np.sqrt(6)) / np.pi
+    mu = mean + gamma * beta
+    return st.gumbel_l(loc=mu, scale=beta)
 
 
 def weibull(
     mean,
     std,
+    loc: float = 0,
     x0: list[float] | None = None,
     method="lm",
     tol=1e-4,
@@ -93,7 +82,7 @@ def weibull(
         st.weibull_min,
         mean,
         std,
-        fixed_params={"loc": 0},
+        fixed_params={"loc": loc},
         search_params=["c", "scale"],
         x0=x0,
         method=method,
@@ -104,6 +93,7 @@ def weibull(
 def frechet(
     mean,
     std,
+    loc: float = 0,
     x0: list[float] | None = None,
     method="lm",
     tol=1e-4,
@@ -112,7 +102,7 @@ def frechet(
         st.invweibull,
         mean,
         std,
-        fixed_params={"loc": 0},
+        fixed_params={"loc": loc},
         search_params=["c", "scale"],
         x0=x0,
         method=method,
@@ -141,46 +131,22 @@ def beta(
     )
 
 
-def gamma(
-    mean,
-    std,
-    x0: list[float] | None = None,
-    method="lm",
-    tol=1e-4,
-):
-    return generic(
-        st.gamma,
-        mean,
-        std,
-        fixed_params={"loc": 0},
-        search_params=["a", "scale"],
-        x0=x0,
-        method=method,
-        tol=tol,
-    )
+def gamma(mean, std, loc: float = 0):
+    mu = mean - loc
+    alpha = (mu / std) ** 2
+    beta = (std**2) / mu
+    return st.gamma(a=alpha, loc=loc, scale=beta)
 
 
-def uniform(
-    mean,
-    std,
-    x0: list[float] | None = None,
-    method="lm",
-    tol=1e-4,
-):
-    return generic(
-        st.uniform,
-        mean,
-        std,
-        fixed_params={},
-        search_params=["loc", "scale"],
-        x0=x0,
-        method=method,
-        tol=tol,
-    )
+def uniform(mean, std):
+    a = mean - np.sqrt(3) * std
+    b = mean + np.sqrt(3) * std
+    return st.uniform(loc=a, scale=b - a)
 
 
 def rayleigh(
     mean,
+    loc: float = 0,
     x0: list[float] | None = None,
     method="lm",
     tol=1e-4,
@@ -189,7 +155,7 @@ def rayleigh(
         st.rayleigh,
         mean,
         None,
-        fixed_params={"loc": 0},
+        fixed_params={"loc": loc},
         search_params=["scale"],
         x0=x0,
         method=method,
@@ -199,6 +165,7 @@ def rayleigh(
 
 def maxwell(
     mean,
+    loc: float = 0,
     x0: list[float] | None = None,
     method="lm",
     tol=1e-4,
@@ -207,7 +174,7 @@ def maxwell(
         st.maxwell,
         mean,
         None,
-        fixed_params={"loc": 0},
+        fixed_params={"loc": loc},
         search_params=["scale"],
         x0=x0,
         method=method,
@@ -217,6 +184,7 @@ def maxwell(
 
 def exponential(
     mean,
+    loc: float = 0,
     x0: list[float] | None = None,
     method="lm",
     tol=1e-4,
@@ -225,7 +193,7 @@ def exponential(
         st.expon,
         mean,
         None,
-        fixed_params={"loc": 0},
+        fixed_params={"loc": loc},
         search_params=["scale"],
         x0=x0,
         method=method,
