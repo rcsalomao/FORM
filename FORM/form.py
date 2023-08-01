@@ -25,7 +25,7 @@ def calc_rho_ij(alphas_gX):
     n_gX = len(alphas_gX)
     rho_ij = {}
     for i in range(n_gX):
-        for j in range(1 + i, n_gX):
+        for j in range(i, n_gX):
             rho = alphas_gX[i].dot(alphas_gX[j])
             set_rho_ij(rho_ij, i, j, rho)
     return rho_ij
@@ -77,23 +77,32 @@ def calc_beta_12(system_type, beta_1, beta_2, rho_12):
     return -st.norm.ppf(calc_bivariate_cdf(system_type, beta_1, beta_2, rho_12))
 
 
+def get_limit_states_count(system_definition, beta_i):
+    for value in system_definition.values():
+        for component in value:
+            if isinstance(component, dict):
+                get_limit_states_count(component, beta_i)
+            else:
+                beta_i[component]["count"] += 1
+
+
 def compound_values(system_type, system_components, beta_i, rho_ij):
     m = system_components[0]
     n = system_components[1]
-    beta_1 = beta_i[m]
-    beta_2 = beta_i[n]
+    beta_1 = beta_i[m]["value"]
+    beta_2 = beta_i[n]["value"]
     rho_12 = get_rho_ij(rho_ij, m, n)
     beta_12 = calc_beta_12(system_type, beta_1, beta_2, rho_12)
     beta_number = max(beta_i.keys()) + 1
     system_components.pop(0)
     system_components[0] = beta_number
-    beta_i.pop(m)
-    beta_i.pop(n)
-    beta_i[beta_number] = beta_12
+    beta_i[m]["count"] -= 1
+    beta_i[n]["count"] -= 1
+    beta_i[beta_number] = {"value": beta_12, "count": 1}
     for k in beta_i.keys():
-        if k == beta_number:
+        if k == beta_number or beta_i[k]["count"] < 1:
             continue
-        beta_k = beta_i[k]
+        beta_k = beta_i[k]["value"]
         rho_1_k = get_rho_ij(rho_ij, m, k)
         rho_2_k = get_rho_ij(rho_ij, n, k)
         A = calc_A(beta_k)
@@ -114,7 +123,8 @@ def compound_values(system_type, system_components, beta_i, rho_ij):
 
 
 def calc_system_beta(system_definition, betas_gX, alphas_gX):
-    beta_i = {i: v for i, v in enumerate(betas_gX)}
+    beta_i = {i: {"value": v, "count": 0} for i, v in enumerate(betas_gX)}
+    get_limit_states_count(system_definition, beta_i)
     rho_ij = calc_rho_ij(alphas_gX)
     current_system = deepcopy(system_definition)
     system_pointer = current_system
@@ -126,7 +136,7 @@ def calc_system_beta(system_definition, betas_gX, alphas_gX):
         if len(current_system_components) == 1 and isinstance(
             current_system_components[0], int
         ):
-            return beta_i[current_system_components[0]]
+            return beta_i[current_system_components[0]]["value"]
         if (
             len(current_system_components) == 2
             and isinstance(current_system_components[0], int)
@@ -134,8 +144,8 @@ def calc_system_beta(system_definition, betas_gX, alphas_gX):
         ):
             m = current_system_components[0]
             n = current_system_components[1]
-            beta_1 = beta_i[m]
-            beta_2 = beta_i[n]
+            beta_1 = beta_i[m]["value"]
+            beta_2 = beta_i[n]["value"]
             rho_12 = get_rho_ij(rho_ij, m, n)
             return calc_beta_12(current_system_type, beta_1, beta_2, rho_12)
         for system_pointer_type, system_pointer_components in system_pointer.items():
@@ -174,7 +184,7 @@ def compute_D_neq(random_vars, z_k, x_k):
     return np.eye(len(x_k)) * (numerador / denominador)
 
 
-def compute_dgX(gX, xi, xd, d, h=1e-5):
+def compute_dgX(gX, xi, xd, d, h):
     n_xi = len(xi)
     n_xd = len(xd)
     dgX = np.zeros(n_xi + n_xd)
@@ -213,7 +223,7 @@ class FORM(object):
         d=None,
         correlation_matrix=None,
         epsilon=2.0001,
-        delta=1e-4,
+        delta=0.0001,
         max_number_iterations=1000,
         h_numerical_gradient=1e-3,
     ):
