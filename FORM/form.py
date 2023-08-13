@@ -1,5 +1,5 @@
 import math
-from collections import namedtuple
+from collections import deque, namedtuple
 from copy import deepcopy
 
 import numpy as np
@@ -78,8 +78,8 @@ def calc_beta_12(system_type, beta_1, beta_2, rho_12):
 
 
 def get_limit_states_count(system_definition, beta_i):
-    for value in system_definition.values():
-        for component in value:
+    for system_components in system_definition.values():
+        for component in system_components:
             if isinstance(component, dict):
                 get_limit_states_count(component, beta_i)
             else:
@@ -87,15 +87,14 @@ def get_limit_states_count(system_definition, beta_i):
 
 
 def compound_values(system_type, system_components, beta_i, rho_ij):
-    m = system_components[0]
-    n = system_components[1]
+    m = system_components.pop()
+    n = system_components.pop()
+    beta_number = max(beta_i.keys()) + 1
+    system_components.append(beta_number)
     beta_1 = beta_i[m]["value"]
     beta_2 = beta_i[n]["value"]
     rho_12 = get_rho_ij(rho_ij, m, n)
     beta_12 = calc_beta_12(system_type, beta_1, beta_2, rho_12)
-    beta_number = max(beta_i.keys()) + 1
-    system_components.pop(0)
-    system_components[0] = beta_number
     beta_i[m]["count"] -= 1
     beta_i[n]["count"] -= 1
     beta_i[beta_number] = {"value": beta_12, "count": 1}
@@ -122,57 +121,26 @@ def compound_values(system_type, system_components, beta_i, rho_ij):
         set_rho_ij(rho_ij, beta_number, k, equivalent_rho_12_k)
 
 
+def calc_system_beta_helper(system_definition, beta_i, rho_ij):
+    for system_type, system_components in system_definition.items():
+        break
+    queue = deque()
+    for i in system_components:
+        if isinstance(i, dict):
+            queue.appendleft(calc_system_beta_helper(i, beta_i, rho_ij))
+        else:
+            queue.appendleft(i)
+    while len(queue) > 1:
+        compound_values(system_type, queue, beta_i, rho_ij)
+    return queue.pop()
+
+
 def calc_system_beta(system_definition, betas_gX, alphas_gX):
     beta_i = {i: {"value": v, "count": 0} for i, v in enumerate(betas_gX)}
     get_limit_states_count(system_definition, beta_i)
     rho_ij = calc_rho_ij(alphas_gX)
-    current_system = deepcopy(system_definition)
-    system_pointer = current_system
-    parent_system_pointer_pointer = current_system
-    system_pointer_position = 0
-    while True:
-        for current_system_type, current_system_components in current_system.items():
-            break
-        if len(current_system_components) == 1 and isinstance(
-            current_system_components[0], int
-        ):
-            return beta_i[current_system_components[0]]["value"]
-        if (
-            len(current_system_components) == 2
-            and isinstance(current_system_components[0], int)
-            and isinstance(current_system_components[1], int)
-        ):
-            m = current_system_components[0]
-            n = current_system_components[1]
-            beta_1 = beta_i[m]["value"]
-            beta_2 = beta_i[n]["value"]
-            rho_12 = get_rho_ij(rho_ij, m, n)
-            return calc_beta_12(current_system_type, beta_1, beta_2, rho_12)
-        for system_pointer_type, system_pointer_components in system_pointer.items():
-            break
-        if isinstance(system_pointer_components[0], dict):
-            parent_system_pointer_pointer = system_pointer
-            system_pointer = system_pointer_components[0]
-            system_pointer_position = 0
-            continue
-        if len(system_pointer_components) == 1:
-            for (
-                _,
-                parent_system_pointer_pointer_components,
-            ) in parent_system_pointer_pointer.items():
-                break
-            parent_system_pointer_pointer_components[
-                system_pointer_position
-            ] = system_pointer_components[0]
-            system_pointer = current_system
-            parent_system_pointer_pointer = current_system
-            continue
-        if isinstance(system_pointer_components[1], dict):
-            parent_system_pointer_pointer = system_pointer
-            system_pointer = system_pointer_components[1]
-            system_pointer_position = 1
-            continue
-        compound_values(system_pointer_type, system_pointer_components, beta_i, rho_ij)
+    s = deepcopy(system_definition)
+    return beta_i[calc_system_beta_helper(s, beta_i, rho_ij)]["value"]
 
 
 def compute_D_neq(random_vars, z_k, x_k):
