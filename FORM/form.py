@@ -4,6 +4,7 @@ from copy import deepcopy
 
 import numpy as np
 import scipy.stats as st
+from scipy.differentiate import jacobian
 from scipy.optimize import minimize_scalar
 
 
@@ -152,20 +153,15 @@ def compute_D_neq(random_vars, z_k, x_k):
     return np.eye(len(x_k)) * (numerador / denominador)
 
 
-def compute_dgX(gX, xi, xd, d, h):
-    n_xi = len(xi)
-    n_xd = len(xd)
-    dgX = np.zeros(n_xi + n_xd)
-    g = gX(xi, xd, d)
-    for i in range(n_xi):
-        xi_temp = np.copy(xi)
-        xi_temp[i] += h
-        dgX[i] = (gX(xi_temp, xd, d) - g) / h
-    for i in range(n_xd):
-        xd_temp = np.copy(xd)
-        xd_temp[i] += h
-        dgX[i + n_xi] = (gX(xi, xd_temp, d) - g) / h
-    return dgX
+def compute_dgX(gX, x_k, n_Xi, d, **kwargs):
+    def f(x):
+        return gX(x[0:n_Xi], x[n_Xi:], d)
+
+    res = jacobian(f, x_k, **kwargs)
+    if res:
+        return res.df
+    else:
+        raise RuntimeError("Could not compute g(X,d) Jacobian.")
 
 
 def criterio_convergencia_epsilon(dgY, y_k, epsilon):
@@ -193,7 +189,12 @@ class FORM(object):
         epsilon=2.0001,
         delta=0.0001,
         max_number_iterations=1000,
-        h_numerical_gradient=1e-3,
+        jacobian_tolerances=None,
+        jacobian_maxiter=10,
+        jacobian_order=8,
+        jacobian_initial_step=0.5,
+        jacobian_step_factor=2.0,
+        jacobian_step_direction=0,
     ):
         if system_definitions is None:
             system_definitions = []
@@ -229,7 +230,18 @@ class FORM(object):
             inv_B_k = np.eye(len(y_k))
 
             gx = gX(x_k[0:n_Xi], x_k[n_Xi:], d)
-            dgx = compute_dgX(gX, x_k[0:n_Xi], x_k[n_Xi:], d, h_numerical_gradient)
+            dgx = compute_dgX(
+                gX,
+                x_k,
+                n_Xi,
+                d,
+                tolerances=jacobian_tolerances,
+                maxiter=jacobian_maxiter,
+                order=jacobian_order,
+                initial_step=jacobian_initial_step,
+                step_factor=jacobian_step_factor,
+                step_direction=jacobian_step_direction,
+            )
             Jxz = compute_D_neq(random_vars, z_k, x_k)
             Jxy = np.dot(Jxz, Jzy)
             dgy = np.dot(Jxy.transpose(), dgx)
@@ -254,7 +266,18 @@ class FORM(object):
                 for i in range(n_rv):
                     x_k[i] = random_vars[i].ppf(st.norm.cdf(z_k[i]))
                 gx = gX(x_k[0:n_Xi], x_k[n_Xi:], d)
-                dgx = compute_dgX(gX, x_k[0:n_Xi], x_k[n_Xi:], d, h_numerical_gradient)
+                dgx = compute_dgX(
+                    gX,
+                    x_k,
+                    n_Xi,
+                    d,
+                    tolerances=jacobian_tolerances,
+                    maxiter=jacobian_maxiter,
+                    order=jacobian_order,
+                    initial_step=jacobian_initial_step,
+                    step_factor=jacobian_step_factor,
+                    step_direction=jacobian_step_direction,
+                )
                 Jxz = compute_D_neq(random_vars, z_k, x_k)
                 Jxy = np.dot(Jxz, Jzy)
                 dgy = np.dot(Jxy.transpose(), dgx)
@@ -282,9 +305,7 @@ class FORM(object):
                 ) * (np.dot(p_k, p_k) / np.dot(p_k, q_k)) - (
                     np.dot(np.dot(p_k, q_k), inv_B_k)
                     + np.dot(np.dot(inv_B_k, q_k), p_k)
-                ) / (
-                    np.dot(p_k, q_k)
-                )
+                ) / (np.dot(p_k, q_k))
                 k += 1
             self.limit_states_trace_data.append(
                 gX_trace_data(beta_k_trace, alpha_k_trace, x_k_trace, y_k_trace, k)
