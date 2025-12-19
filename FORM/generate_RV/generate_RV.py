@@ -11,7 +11,7 @@ def generic(
     rv,
     mean,
     std: float | None,
-    fixed_params: dict[str:float],
+    fixed_params: dict[str, float],
     search_params: list[str],
     x0: list[float] | None = None,
     method="lm",
